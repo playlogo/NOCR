@@ -15,7 +15,11 @@ export class Job {
 		let description;
 
 		try {
-			description = JSON.parse(description_content);
+			description = JSON.parse(description_content) as {
+				requires: string[];
+				schedules: string[];
+				executable: string;
+			};
 		} catch (err) {
 			console.error(description_content);
 			console.error(`[main] Failed to parse description of job '${this.name}': ${err}`);
@@ -24,7 +28,7 @@ export class Job {
 
 		this.cron = description.schedules;
 
-		this.command = new Deno.Command("deno", {
+		this.command = new Deno.Command(description.executable, {
 			cwd: `${Deno.cwd()}/jobs/${this.name}`,
 			args: [
 				"run",
@@ -58,8 +62,16 @@ export class Job {
 
 		console.log(`[job] [${this.name}] [${ray}] Executing at ${new Date().toISOString()}`);
 
-		// Create process
-		const process = this.command!.spawn();
+		// Spawn process
+		let process;
+
+		try {
+			process = this.command!.spawn();
+		} catch (err) {
+			console.error(`[job] [${this.name}] [${ray}] Failed to spawn process: ${err}`);
+			return;
+		}
+
 		const out = await process.output();
 		const duration = Math.round((Date.now() - start) / 1000);
 
