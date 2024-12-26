@@ -35,6 +35,9 @@ export class Job {
 			],
 			stderr: "piped",
 			stdout: "piped",
+			env: {
+				GROQ_API_KEY: Deno.env.get("GROQ_API_KEY") || "",
+			},
 		});
 
 		// Schedule cron runs

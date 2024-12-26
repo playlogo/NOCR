@@ -74,7 +74,7 @@ ${productsHTML}
 \`\`\`
 `;
 
-	const products = await groq.chatCompletion([
+	const response = await groq.chatCompletion([
 		{
 			role: "system",
 			content: "You are a website data extraction specialist. Only respond in JSON!",
@@ -84,25 +84,123 @@ ${productsHTML}
 			content: prompt,
 		},
 	]);
-	return products.products as Product[];
+
+	const products = response.products as Product[];
+
+	// Remove trailing " - defekt" in title
+	products.forEach((entry) => entry.name.replaceAll(" - defekt", ""));
+
+	return products;
 }
 
-//const result = await scrape();
+const result = await scrape();
+console.log(`[3djake] Scraped ${result.length} products`);
 
 // Get last report (if available)
-const last = await scrapesCollection.findOne({}, { sort: { date: -1 } });
+let last = (await scrapesCollection.findOne({}, { sort: { date: -1 } }))?.products;
 
-console.log(last);
+if (last === undefined) {
+	last = [];
+}
 
 // Store current
-//await scrapesCollection.insertOne({ products: result, date: Date.now() });
+await scrapesCollection.insertOne({ products: result, date: Date.now() });
 
-const notification: Notification = {
-	title: "3D Jake: 1 CNC, 2 FDM, 1 SLA",
-	body: `🔩 109€: Phrozen Sonic Mightydsaadsas
-🌡️ 295€: Phrozen Sonic Mightydsaadsas
-👀  89€: Phrozen Sonic Mightydsaadsas`,
-	click: "https://www.3djake.de/3d-drucker-und-mehr/outlet",
-	priority: 3,
-	icon: "https://yt3.googleusercontent.com/-EvEIeCH1jcqXn7V1iaAk_B7hn_AurfXA5qHCKl8jD2SVJXIDyGWUFn6B3dM-d_awPB0byWy1w=s900-c-k-c0x00ffffff-no-rj",
-};
+// Filter added devices
+const added: Product[] = [];
+
+for (const entry of result) {
+	if (last.some((lastEntry: Product) => lastEntry.link === entry.link)) {
+		// Not a new entry
+		continue;
+	}
+
+	if (entry.soldOut) {
+		// Not available anymore
+		continue;
+	}
+
+	added.push(entry);
+}
+
+// Send notification
+async function notify() {
+	if (added.length === 0) {
+		console.log("[3djake] No new entries");
+		return;
+	}
+
+	console.log(`[3djake] ${added.length} new entries`);
+
+	// Build notification
+	const notification: Notification = {
+		title: "3D Jake:",
+		body: "",
+		click: "https://www.3djake.de/3d-drucker-und-mehr/outlet",
+		priority: 3,
+		icon: "https://yt3.googleusercontent.com/-EvEIeCH1jcqXn7V1iaAk_B7hn_AurfXA5qHCKl8jD2SVJXIDyGWUFn6B3dM-d_awPB0byWy1w=s900-c-k-c0x00ffffff-no-rj",
+	};
+
+	// Limit and sort
+	added.sort((a, b) => (a.price > b.price ? 1 : -1));
+
+	const counts = {
+		cnc: added.filter((entry) => entry.kind === "CNC"),
+		fdm: added.filter((entry) => entry.kind === "FDM 3D Printer"),
+		sla: added.filter((entry) => entry.kind === "RESIN 3D Printer"),
+	};
+
+	const rest = added.length - counts.cnc.length - counts.fdm.length - counts.sla.length;
+
+	// Title
+	if (counts.cnc.length > 0) {
+		notification.title += ` ${counts.cnc.length} CNC`;
+	}
+
+	if (counts.fdm.length > 0) {
+		notification.title += ` ${counts.fdm.length} FDM`;
+	}
+
+	if (counts.sla.length > 0) {
+		notification.title += ` ${counts.sla.length} SLA`;
+	}
+
+	if (rest > 0) {
+		notification.title += ` +${counts.sla.length}`;
+	}
+
+	// Body
+	let i = 4;
+
+	for (const cnc of counts.cnc) {
+		if (i == 0) {
+			continue;
+		}
+
+		notification.body += `🔩 ${Math.floor(cnc.price)}€: ${cnc.name.slice(0, 30)}\n`;
+		i--;
+	}
+
+	for (const fdm of counts.fdm) {
+		if (i == 0) {
+			continue;
+		}
+
+		notification.body += `🌡️ ${Math.floor(fdm.price)}€: ${fdm.name.slice(0, 30)}\n`;
+		i--;
+	}
+
+	for (const sla of counts.sla) {
+		if (i == 0) {
+			continue;
+		}
+
+		notification.body += `👀 ${Math.floor(sla.price)}€: ${sla.name.slice(0, 30)}\n`;
+		i--;
+	}
+
+	// Send notification
+	await publish(notification);
+}
+
+await notify();
