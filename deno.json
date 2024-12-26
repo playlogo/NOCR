@@ -1,5 +1,8 @@
 {
     "tasks": {
-        "run": "deno run --allow-net --allow-read --allow-env src/main.ts"
-    }
+        "run": "deno run --allow-net --allow-run --allow-read --allow-env src/main.ts"
+    },
+    "unstable": [
+        "cron"
+    ]
 }

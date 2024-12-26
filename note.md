@@ -46,3 +46,7 @@ Output only the resulting JSON.
 🌡️ 295€: aassasasa
 👀 89€: Phrozen Sonic Mighty
 ```
+
+console.log(Deno.env.get("GREETING")); // "Hello, world."
+
+// 31

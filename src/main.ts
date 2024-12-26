@@ -1,41 +1,40 @@
 import "jsr:@std/dotenv/load";
 
-class Job {
-	name: string;
-	cron: string[] = [];
-	subprocess: Deno.ChildProcess | undefined;
+import { Job } from "./job.ts";
 
-	constructor(name: string) {
-		this.name = name;
-	}
+const jobs = [];
 
-	async load() {
-		// Load job json description
-		const description_content = await Deno.readTextFile(`./jobs/${this.name}/job.json`);
-		let description;
-
-		try {
-			description = JSON.parse(description_content);
-		} catch (err) {
-			console.error(description_content);
-			console.error(`[main] Failed to parse description of job '${this.name}': ${err}`);
-			return;
+async function collectJobs() {
+	for await (const entry of Deno.readDir("./jobs")) {
+		// Ignore non job folders
+		if (!entry.isDirectory) {
+			continue;
 		}
 
-		this.cron = description.schedules;
+		if (entry.name === "utils") {
+			continue;
+		}
+
+		const path = `./jobs/${entry.name}`;
+
+		try {
+			await Deno.stat(`${path}/job.json`);
+		} catch (err) {
+			continue;
+		}
+
+		// Create job
+		const job = new Job(entry.name);
+		await job.load();
+
+		console.log(`[main] Loaded job '${entry.name}'`);
+
+		jobs.push(job);
 	}
 }
 
 // Collect jobs
+console.log(`[main] Collecting Jobs`);
+await collectJobs();
 
-for await (const entry of Deno.readDir("./jobs")) {
-	// Ignore non job folders
-	if (!entry.isDirectory) {
-		continue;
-	}
-
-	console.log(entry);
-}
-console.log(Deno.env.get("GREETING")); // "Hello, world."
-
-// 31
+console.log(`[main] Done`);

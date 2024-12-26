@@ -1,16 +1,42 @@
 import { DOMParser } from "https://deno.land/x/deno_dom/deno-dom-wasm.ts";
 
-const url = "https://www.3djake.de/3d-drucker-und-mehr/outlet";
+import { groq } from "./groq.ts";
+import { Notification, publish } from "../utils/ntfy.ts";
+import { db } from "../utils/mongodb.ts";
+import { ObjectId } from "https://deno.land/x/mongo@v0.33.0/deps.ts";
 
-const text = await (await fetch(url)).text();
+// Schemas
+interface ScrapeResult {
+	_id: ObjectId;
+	products: Product[];
+	date: number;
+}
 
-const parser = new DOMParser();
-const htmlDoc = parser.parseFromString(text, "text/html");
+interface Product {
+	name: string;
+	image: string;
+	link: string;
+	kind: string;
+	priceBeforeSale: number;
+	price: number;
+	soldOut: boolean;
+}
 
-const productsHTML = htmlDoc.querySelector("#productList")?.outerHTML;
+const scrapesCollection = db.collection<ScrapeResult>("3djake");
 
-// Inference
-const prompt = `
+// Scraper
+async function scrape() {
+	const url = "https://www.3djake.de/3d-drucker-und-mehr/outlet";
+
+	const text = await (await fetch(url)).text();
+
+	const parser = new DOMParser();
+	const htmlDoc = parser.parseFromString(text, "text/html");
+
+	const productsHTML = htmlDoc.querySelector("#productList")?.outerHTML;
+
+	// Inference
+	const prompt = `
 ## Task
 
 Extract product details from the provided HTML code and structure the response strictly in JSON format as specified below.
@@ -48,16 +74,35 @@ ${productsHTML}
 \`\`\`
 `;
 
-import { groq } from "./groq.ts";
-const products = await groq.chatCompletion([
-	{
-		role: "system",
-		content: "You are a website data extraction specialist. Only respond in JSON!",
-	},
-	{
-		role: "user",
-		content: prompt,
-	},
-]);
+	const products = await groq.chatCompletion([
+		{
+			role: "system",
+			content: "You are a website data extraction specialist. Only respond in JSON!",
+		},
+		{
+			role: "user",
+			content: prompt,
+		},
+	]);
+	return products.products as Product[];
+}
 
-console.log(products);
+//const result = await scrape();
+
+// Get last report (if available)
+const last = await scrapesCollection.findOne({}, { sort: { date: -1 } });
+
+console.log(last);
+
+// Store current
+//await scrapesCollection.insertOne({ products: result, date: Date.now() });
+
+const notification: Notification = {
+	title: "3D Jake: 1 CNC, 2 FDM, 1 SLA",
+	body: `🔩 109€: Phrozen Sonic Mightydsaadsas
+🌡️ 295€: Phrozen Sonic Mightydsaadsas
+👀  89€: Phrozen Sonic Mightydsaadsas`,
+	click: "https://www.3djake.de/3d-drucker-und-mehr/outlet",
+	priority: 3,
+	icon: "https://yt3.googleusercontent.com/-EvEIeCH1jcqXn7V1iaAk_B7hn_AurfXA5qHCKl8jD2SVJXIDyGWUFn6B3dM-d_awPB0byWy1w=s900-c-k-c0x00ffffff-no-rj",
+};
