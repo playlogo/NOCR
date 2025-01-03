@@ -1,12 +1,11 @@
 if (!Deno.env.has("GROQ_API_KEY")) {
-	console.error("Exiting: GROQ_API_KEY is missing");
-	Deno.exit(1);
+	throw new Error(`[groq] Exiting: GROQ_API_KEY is missing`);
 }
 
 export const groq = {
 	apiKey: Deno.env.get("GROQ_API_KEY"),
 
-	async chatCompletion(messages: any[]) {
+	async chatCompletion(messages: { role: "system" | "user"; content: string }[]) {
 		const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
 			method: "POST",
 			headers: {
@@ -17,7 +16,7 @@ export const groq = {
 				messages: messages,
 				model: "llama-3.3-70b-versatile",
 				temperature: 0.5,
-				max_tokens: 4092,
+				max_tokens: 6092,
 				top_p: 0.95,
 				stream: false,
 				response_format: {

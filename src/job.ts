@@ -1,5 +1,10 @@
 import { randomID } from "./utils.ts";
 
+const ENV_LOOKUP: { [key: string]: string } = {
+	mongo: "MONGO_DB_SRV",
+	ntfy: "NTFY_CHANNEL",
+};
+
 export class Job {
 	name: string;
 	cron: string[] = [];
@@ -19,6 +24,8 @@ export class Job {
 				requires: string[];
 				schedules: string[];
 				executable: string;
+				args: string[];
+				env?: string[];
 			};
 		} catch (err) {
 			console.error(description_content);
@@ -28,20 +35,48 @@ export class Job {
 
 		this.cron = description.schedules;
 
+		// Collect requirements
+		const args: string[] = [...description.args];
+
+		for (const requirement of description.requires) {
+			if (ENV_LOOKUP[requirement] === undefined) {
+				throw new Error(`[jobs] Unknown requirement '${requirement}'`);
+			}
+
+			if (!Deno.env.has(ENV_LOOKUP[requirement])) {
+				throw new Error(
+					`[jobs] Missing env variable '${ENV_LOOKUP[requirement]}' for requirement '${requirement}'`
+				);
+			}
+
+			args.push(`--${requirement}=${Deno.env.get("MONGO_DB_SRV")}`);
+		}
+
+		// Collect env variables
+		const env: { [key: string]: string } = {};
+
+		if (description.env !== undefined) {
+			for (const envVar of description.env) {
+				if (!Deno.env.has(envVar)) {
+					throw new Error(`[jobs] Missing manually required env variable '${envVar}'`);
+				}
+
+				env[envVar] = Deno.env.get(envVar)!;
+			}
+		}
+
+		// Resolve home path in executable
+		description.executable = description.executable.replace(
+			"~",
+			Deno.build.os === "windows" ? Deno.env.get("USERPROFILE")! : Deno.env.get("HOME")!
+		);
+
 		this.command = new Deno.Command(description.executable, {
 			cwd: `${Deno.cwd()}/jobs/${this.name}`,
-			args: [
-				"run",
-				"--allow-all",
-				"main.ts",
-				`--mongosrv=${Deno.env.get("MONGO_DB_SRV") || "none"}`,
-				`--ntfy=${Deno.env.get("NTFY_CHANNEL") || "none"}`,
-			],
 			stderr: "piped",
 			stdout: "piped",
-			env: {
-				GROQ_API_KEY: Deno.env.get("GROQ_API_KEY") || "",
-			},
+			args,
+			env,
 		});
 
 		// Schedule cron runs
@@ -52,8 +87,6 @@ export class Job {
 			Deno.cron(`${this.name}-${i}`, cronTime, fn);
 			i++;
 		}
-
-		fn();
 	}
 
 	async run() {

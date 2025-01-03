@@ -1,11 +1,21 @@
 {
-    "requires": [
-        "mongo"
-    ],
+    "$schema": "../utils/job.schema.json",
     "schedules": [
         "0 6 * * *",
         "0 14 * * *",
         "0 20 * * *"
     ],
-    "executable": "/home/pi/.deno/bin/deno"
+    "executable": "~/.deno/bin/deno",
+    "args": [
+        "run",
+        "--allow-all",
+        "main.ts"
+    ],
+    "requires": [
+        "mongo",
+        "ntfy"
+    ],
+    "env": [
+        "GROQ_API_KEY"
+    ]
 }

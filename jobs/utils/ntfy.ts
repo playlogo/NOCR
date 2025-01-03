@@ -1,5 +1,9 @@
 import flags from "./index.ts";
 
+if (flags.ntfy === undefined) {
+	throw new Error(`[ntfy] Missing 'ntfy' requirement`);
+}
+
 export interface Notification {
 	title: string;
 	icon?: string;

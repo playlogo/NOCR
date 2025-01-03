@@ -19,17 +19,21 @@ async function collectJobs() {
 
 		try {
 			await Deno.stat(`${path}/job.json`);
-		} catch (err) {
+		} catch (_err) {
 			continue;
 		}
 
 		// Create job
-		const job = new Job(entry.name);
-		await job.load();
+		try {
+			const job = new Job(entry.name);
+			await job.load();
 
-		console.log(`[main] Loaded job '${entry.name}'`);
+			console.log(`[main] Loaded job '${entry.name}'`);
 
-		jobs.push(job);
+			jobs.push(job);
+		} catch (err) {
+			console.error(`[main] Error loading job '${entry.name}': ${err}`);
+		}
 	}
 }
 
