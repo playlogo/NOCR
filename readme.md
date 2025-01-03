@@ -1,21 +1,54 @@
 # NOCR
 
-Schedule the execution of small scripts and programs using simple json files.
+NOCR (No Cron) is a task scheduler that can execute scripts and programs using simple JSON configuration files written in Typescript for the Deno runtime. It uses cron-style scheduling and supports environment variables.
 
 Current scripts:
 
-- 3DJake: Scrape the outlet page of 3D Jake and send a push notification if new deals get added
+- [3DJake](jobs/3djake): Monitor 3D Jake's (a German online shop for 3D Printers) outlet page and send push notifications if new deals get added
 
-## Adding programs
+## Adding scripts / programs
+
+Note: For Deno programs: Use `jobs/utils` to send push notifications and connect to a MongoDB database
+
+1. Place your script / program in a new folder under `jobs/`
+2. Create a `job.json` configuration file in the same folder:
+
+```json
+{
+    "$schema": "../utils/job.schema.json", 
+    "schedules": [
+        "0 6 * * *", // List of cron schedule expressions (see https://crontab.guru/) 
+    ],
+    "executable": "~/.deno/bin/deno", // Absolute path (~ also allowed) to executable / Relative path to script
+    "args": [ 
+        "run",
+        "--allow-all",
+        "main.ts"
+    ],
+    "requires": [ 
+        "mongo",
+        "ntfy" // Program requirements, currently only mongo and ntfy available
+    ],
+    "env": [
+        "GROQ_API_KEY" // Additional environment variables that get passed down
+    ]
+}
+```
 
 ## Installing
 
-- Install Deno: [https://deno.com/](https://deno.com/)
-- Clone repo: `git clone https://github.com/playlogo/NOCR.git`
-- Get deno executable path: `which deno`
-- Create systemd user service: `nano ~/.config/systemd/user/nocr.service`
+1. Install Deno: [https://deno.com/](https://deno.com/)
+2. Clone the repo: `git clone https://github.com/playlogo/NOCR.git`
+3. Create a `.env` file, checkout the documentation of the jobs for required env variables
+4. Get the path of the deno executable: `which deno`
+5. Setup a systemd service:
+    - Create systemd user service: `nano ~/.config/systemd/user/nocr.service`
+    - Reload systemd config: `systemctl --user daemon-reload`
+    - Enable & Start service: `systemctl --user enable nocr --now`
+    - View logs: `journalctl --user -u nocr -e -f`
 
 ```shell
+# ~/.config/systemd/user/nocr.service
 [Unit]
 Description=NOCR
 After=network.target
@@ -32,6 +65,6 @@ ExecStart=${deno path} task run
 WantedBy=default.target
 ```
 
-- Reload systemd config: `systemctl --user daemon-reload`
-- Enable & Start service: `systemctl --user enable nocr --now`
-- View logs: `journalctl --user -u nocr -e -f`
+## Screenshot
+
+![Output of v1](docs/image.png)
