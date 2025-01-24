@@ -9,6 +9,8 @@ import { ObjectId } from "https://deno.land/x/mongo@v0.33.0/deps.ts";
 interface ScrapeResult {
 	_id: ObjectId;
 	products: Product[];
+	newProducts: Product[];
+	notification: string;
 	date: number;
 }
 
@@ -141,9 +143,6 @@ if (last === undefined) {
 	last = [];
 }
 
-// Store current
-await scrapesCollection.insertOne({ products: result, date: Date.now() });
-
 // Filter added devices
 const added: Product[] = [];
 
@@ -161,11 +160,11 @@ for (const entry of result) {
 	added.push(entry);
 }
 
-// Send notification
-async function notify() {
+// Build notification
+function buildNotification(): Notification | null {
 	if (added.length === 0) {
 		console.log("[3djake] No new entries");
-		return;
+		return null;
 	}
 
 	console.log(`[3djake] ${added.length} new entries`);
@@ -238,7 +237,20 @@ async function notify() {
 	}
 
 	// Send notification
-	await publish(notification);
+	return notification;
 }
 
-await notify();
+const notification = buildNotification();
+
+// Store current
+await scrapesCollection.insertOne({
+	products: result,
+	newProducts: added,
+	notification: notification !== null ? notification.body : "",
+	date: Date.now(),
+});
+
+// Publish notification
+if (notification !== null) {
+	await publish(notification);
+}
