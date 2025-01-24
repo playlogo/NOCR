@@ -1,9 +1,8 @@
 {
     "$schema": "../utils/job.schema.json",
     "schedules": [
-        "0 6 * * *",
-        "0 14 * * *",
-        "0 20 * * *"
+        "0 5-21 * * *",
+        "0 2 * * *"
     ],
     "executable": "~/.deno/bin/deno",
     "args": [

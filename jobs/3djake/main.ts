@@ -33,7 +33,27 @@ async function scrape() {
 	const parser = new DOMParser();
 	const htmlDoc = parser.parseFromString(text, "text/html");
 
-	const productsHTML = htmlDoc.querySelector("#productList")?.outerHTML;
+	// Minify html
+	const element = htmlDoc.querySelector("#productList")!;
+	const toRemove: string[] = ["svg", "ul", "input", "button"];
+
+	for (const removingSelector of toRemove) {
+		for (const entry of element.querySelectorAll(removingSelector)) {
+			entry.remove();
+		}
+	}
+
+	for (const entry of element.querySelectorAll("img")) {
+		entry.setAttribute("srcset", "");
+		entry.setAttribute("sizes", "");
+		entry.setAttribute("class", "");
+	}
+
+	// Regex!
+	let productsHTML = element?.outerHTML;
+
+	productsHTML = productsHTML.replace(/data-json="\{.*?\}"/g, ""); // Remove json data
+	productsHTML = productsHTML.replace(/\s+/g, " "); // Remove whitespace mess
 
 	// Inference
 	const prompt = `
@@ -50,7 +70,7 @@ Extract product details from the provided HTML code and structure the response s
       "name": string, // Full name and brand of the product.
       "image": string, // URL of the highest resolution image available for the product.
       "link": string, // URL to the product's details page. Add https://www.3djake.de/ if not given
-      "kind": string, // One of the following categories: "FDM 3D Printer", "RESIN 3D Printer", "RESIN Utils", "CNC", "Other".
+      "kind": string, // One of the following categories: "FDM 3D Printer", "RESIN 3D Printer", "RESIN Utils", "CNC", "LASER", "Other".
       "priceBeforeSale"?: number, // (Optional) The original price of the product before any discounts, e.g., 45.99 for €45.99.
       "price": number, // The current sale price of the product.
       "soldOut": boolean // If the product is sold out true or false if it's still available
@@ -74,16 +94,34 @@ ${productsHTML}
 \`\`\`
 `;
 
-	const response = await groq.chatCompletion([
-		{
-			role: "system",
-			content: "You are a website data extraction specialist. Only respond in JSON!",
-		},
-		{
-			role: "user",
-			content: prompt,
-		},
-	]);
+	let response;
+
+	try {
+		response = await groq.chatCompletion([
+			{
+				role: "system",
+				content: "You are a website data extraction specialist. Only respond in JSON!",
+			},
+			{
+				role: "user",
+				content: prompt,
+			},
+		]);
+	} catch (err) {
+		console.error(prompt);
+		console.error(prompt.length);
+		console.error(err);
+
+		await publish({
+			title: "3D Jake: Unable to invoke llm",
+			body: "Unable to invoke llm",
+			click: "https://www.3djake.de/3d-drucker-und-mehr/outlet",
+			priority: 3,
+			icon: "https://yt3.googleusercontent.com/-EvEIeCH1jcqXn7V1iaAk_B7hn_AurfXA5qHCKl8jD2SVJXIDyGWUFn6B3dM-d_awPB0byWy1w=s900-c-k-c0x00ffffff-no-rj",
+		});
+
+		throw new Error("Unable to invoke llm");
+	}
 
 	const products = response.products as Product[];
 
@@ -145,7 +183,7 @@ async function notify() {
 	added.sort((a, b) => (a.price > b.price ? 1 : -1));
 
 	const counts = {
-		cnc: added.filter((entry) => entry.kind === "CNC"),
+		cnc: added.filter((entry) => entry.kind === "CNC" || entry.kind === "LASER"),
 		fdm: added.filter((entry) => entry.kind === "FDM 3D Printer"),
 		sla: added.filter((entry) => entry.kind === "RESIN 3D Printer"),
 	};
