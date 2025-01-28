@@ -252,5 +252,6 @@ await scrapesCollection.insertOne({
 
 // Publish notification
 if (notification !== null) {
+	console.log("Published notification");
 	await publish(notification);
 }

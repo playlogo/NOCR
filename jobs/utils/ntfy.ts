@@ -13,7 +13,7 @@ export interface Notification {
 }
 
 export async function publish(notification: Notification) {
-	await fetch(`https://ntfy.sh/${flags.ntfy}`, {
+	const res = await fetch(`https://ntfy.sh/${flags.ntfy}`, {
 		method: "POST",
 		headers: {
 			Icon: notification.icon || "",
@@ -23,4 +23,8 @@ export async function publish(notification: Notification) {
 		},
 		body: notification.body,
 	});
+
+	if (!res.ok) {
+		console.error(`[ntfy] Error: ${res.statusText}`);
+	}
 }

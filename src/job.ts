@@ -49,7 +49,7 @@ export class Job {
 				);
 			}
 
-			args.push(`--${requirement}=${Deno.env.get("MONGO_DB_SRV")}`);
+			args.push(`--${requirement}=${Deno.env.get(ENV_LOOKUP[requirement])}`);
 		}
 
 		// Collect env variables
